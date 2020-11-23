@@ -19,5 +19,10 @@ Usage
   help                   show this message
   ```
   
+  ## FAQ
+  **Q**: I use tools that automatically modify `~/.aws/credentials`. How can I keep them from modifying settings?
+  
+  **A**: Navigate to `~/.aws_creds_man` and set the setting files you do not want modified to readonly i.e. `chmod 400 ~/.aws_creds_man/my_settings` 
+
 ## License
 MIT

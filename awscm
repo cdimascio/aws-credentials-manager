@@ -4,7 +4,7 @@ set -e
 
 op="$1"
 sub="$2"
-PROFILES_DIR="$HOME/.aws_cred_man"
+SETTINGS_DIR="$HOME/.aws_cred_man"
 AWS_CREDS="$HOME/.aws/credentials"
 
 function main() {
@@ -13,9 +13,9 @@ function main() {
     initialize
 
     # list command
-    if [[ $op == "list" ]]; then 
+    if [[ $op == "list" || $op == "ls" ]]; then 
         cur=$(readlink ~/.aws/credentials | xargs basename)
-        ls -1 $PROFILES_DIR | xargs -I {} -n1 bash -c "if [ \"${cur}\" == {} ]; then echo \"* {}\" ;  else echo \"  {}\" ; fi"
+        ls -1 $SETTINGS_DIR | xargs -I {} -n1 bash -c "if [ \"${cur}\" == {} ]; then echo \"* {}\" ;  else echo \"  {}\" ; fi"
     fi
 
     # cat
@@ -23,57 +23,80 @@ function main() {
         if [ -z $sub]; then
             cat $AWS_CREDS
         else
-            cat "$PROFILES_DIR/$sub"
+            cat "$SETTINGS_DIR/$sub"
         fi
         
     fi
 
     # current command
-    if [[ $op == "current" ]]; then 
+    if [[ $op == "current" || $op == "cur" ]]; then 
         readlink ~/.aws/credentials | xargs basename
+    fi
+
+    # remove command
+    if [[ $op == "remove" || $op == "rm" ]]; then 
+        if [ -z "$sub" ]; then 
+            echo "settings name required $op <settings>" && exit 1
+        fi
+        rm "$SETTINGS_DIR/$sub"
     fi
 
     # use command
     if [[ $op == "use" ]]; then 
         if [ -z "$sub" ]; then 
-            echo "profile name required $op <profile>" && exit 1
+            echo "settings name required $op <settings>" && exit 1
         fi
-        profile="$PROFILES_DIR/$sub"
+        settings="$SETTINGS_DIR/$sub"
+
+        if [ ! -f "$settings" ]; then
+            echo "settings $sub does not exist" && exit 1
+        fi
+
         rm $AWS_CREDS
-        ln -s $profile $AWS_CREDS
+        ln -s $settings $AWS_CREDS
     fi
 
     # edit or create command
     if [[ $op == "edit" || $op == "create" ]]; then 
         if [ -z "$sub" ]; then 
-            echo "profile name required $op <profile>" && exit 1
+            if [ "$op" == "create" ]; then 
+                echo "settings name required. try 'edit <settings>'" && exit 1
+            fi
+            sub=$(readlink ~/.aws/credentials | xargs basename)
+            echo here  $sub ll
+            if [ -z "$sub" ]; then
+                sub="default"
+            fi
         fi
         
-        # create profile
-        profile=$PROFILES_DIR/$sub
-        if [ ! -f "$profile" ]; then
-            touch $profile
+        # create settings
+        settings=$SETTINGS_DIR/$sub
+        if [ ! -f "$settings" ]; then
+            touch $settings
         fi
-        vi $profile
+        vi $settings
     fi
 }
 
 function usage() {
-    width=20
+    width=25
     echo
     echo "Credentials Manager for AWS (v1.0.0)"
     echo
     echo "Usage"
-    printf '  create <profile>\t%s\n' 'create/edit <profile>' | expand -t $width
-    printf '  current\t%s\n' 'show the current profile' | expand -t $width
-    printf '  edit <profile>\t%s\n' 'create/edit <profile>' | expand -t $width
-    printf '  list\t%s\n' 'list profiles' | expand -t $width
-    printf '  use <profile>\t%s\n' 'switch to <profile>' | expand -t $width
+    printf '  ls\t%s\n' 'list settings' | expand -t $width
+    printf '  current\t%s\n' 'show the current settings' | expand -t $width
+    printf '  use <settings>\t%s\n' 'switch to <settings>' | expand -t $width
+    printf '  create <settings>\t%s\n' 'create/edit <settings>' | expand -t $width
+    printf '  rm <settings>\t%s\n' 'remove the <settings>' | expand -t $width
+    printf '  edit <settings>\t%s\n' 'create/edit <settings>' | expand -t $width
+    printf '  help\t%s\n' 'show this message' | expand -t $width
+
     echo
 }
 
 function validate_usage() {
-    valid_ops="cat create current edit list use"
+    valid_ops="cat create current cur edit list ls remove rm use"
     if [[ ! " ${valid_ops[@]} " =~ " ${op} " ]]; then
         usage
         exit 1
@@ -82,16 +105,16 @@ function validate_usage() {
 
 function initialize() {
     # create config dir
-    if [ ! -d "$PROFILES_DIR" ]; then
-        mkdir -p PROFILES_DIR
+    if [ ! -d "$SETTINGS_DIR" ]; then
+        mkdir -p SETTINGS_DIR
     fi
 
     # setup
     # if aws creds does not exist or is not a symbolic link, we have work to do
     if [ ! -L "$AWS_CREDS" ]; then
-        # if it exists move it and set it as the default profile
+        # if it exists move it and set it as the default settings
         if [ -f "$AWS_CREDS" ]; then
-            default="$PROFILES_DIR/default"
+            default="$SETTINGS_DIR/default"
             mv $AWS_CREDS $default
             ln -s $default $AWS_CREDS
             echo "Your're all set up and good to go!"
